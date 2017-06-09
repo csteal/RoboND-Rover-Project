@@ -21,7 +21,7 @@ import time
 from perception import perception_step
 from decision import decision_step
 from supporting_functions import update_rover, create_output_images
-# Initialize socketio server and Flask application 
+# Initialize socketio server and Flask application
 # (learn more at: https://python-socketio.readthedocs.io/en/latest/)
 sio = socketio.Server()
 app = Flask(__name__)
@@ -31,7 +31,7 @@ app = Flask(__name__)
 # and y-axis increasing downward.
 ground_truth = mpimg.imread('../calibration_images/map_bw.png')
 # This next line creates arrays of zeros in the red and blue channels
-# and puts the map into the green channel.  This is why the underlying 
+# and puts the map into the green channel.  This is why the underlying
 # map output looks green in the display image
 ground_truth_3d = np.dstack((ground_truth*0, ground_truth*255, ground_truth*0)).astype(np.float)
 
@@ -51,6 +51,8 @@ class RoverState():
         self.brake = 0 # Current brake value
         self.nav_angles = None # Angles of navigable terrain pixels
         self.nav_dists = None # Distances of navigable terrain pixels
+        self.rock_angles = None # Angles of detected rock pixels
+        self.rock_dists = None # Distances of detected rock pixels
         self.ground_truth = ground_truth_3d # Ground truth worldmap
         self.mode = 'forward' # Current mode (can be forward or stop)
         self.throttle_set = 0.2 # Throttle setting when accelerating
@@ -61,22 +63,49 @@ class RoverState():
         # get creative in adding new fields or modifying these!
         self.stop_forward = 50 # Threshold to initiate stopping
         self.go_forward = 500 # Threshold to go forward again
+        self.rock_detect = 5 # Threshold to steer towards rock pixels
         self.max_vel = 2 # Maximum velocity (meters/second)
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
-        self.vision_image = np.zeros((160, 320, 3), dtype=np.float) 
+        self.vision_image = np.zeros((160, 320, 3), dtype=np.float)
         # Worldmap
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
-        self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
+        self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
         self.samples_pos = None # To store the actual sample positions
         self.samples_to_find = 0 # To store the initial count of samples
         self.samples_found = 0 # To count the number of samples found
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
-# Initialize our rover 
+        # Variables to help improve autonomous navigation
+        self.is_stuck = False # Set to True to turn around
+        self.check_count = 0 # Counter used in movement_check
+        self.pos_history = np.zeros((50,2), dtype=np.float) # To store 50 recent postions
+        self.rock_pxls = None # To store the count of rock pixels
+
+    def movement_check(self):
+        if self.vel >= 0.2:
+            self.is_stuck = False
+            self.check_count = 0
+        else:
+            if self.throttle > 0 and self.vel < 0.2:
+                if check_count > 10:
+                    self.is_stuck = True
+                    self.throttle = 0
+                else:
+                    self.check_count += 1
+            else:
+                self.is_stuck = False
+
+            # np.roll(self.pos_history,2)
+            # self.pos_history[0,:] = self.pos
+            # avg_x = np.mean(self.pos_history[25:,0])
+            # avg_y = np.mean(self.pos_history[25:,1])
+            # distance = np.sqrt((self.pos[0] - avg_x)**2 + (self.pos[1] - avg_y)**2)
+
+# Initialize our rover
 Rover = RoverState()
 
 # Variables to track frames per second (FPS)
@@ -104,7 +133,6 @@ def telemetry(sid, data):
         global Rover
         # Initialize / update Rover with current telemetry
         Rover, image = update_rover(Rover, data)
-
         if np.isfinite(Rover.vel):
 
             # Execute the perception and decision steps to update the Rover's state
@@ -117,7 +145,7 @@ def telemetry(sid, data):
             # The action step!  Send commands to the rover!
             commands = (Rover.throttle, Rover.brake, Rover.steer)
             send_control(commands, out_image_string1, out_image_string2)
- 
+
             # If in a state where want to pickup a rock send pickup command
             if Rover.send_pickup and not Rover.picking_up:
                 send_pickup()
@@ -165,7 +193,7 @@ def send_control(commands, image_string1, image_string2):
         data,
         skip_sid=True)
     eventlet.sleep(0)
-# Define a function to send the "pickup" command 
+# Define a function to send the "pickup" command
 def send_pickup():
     print("Picking up")
     pickup = {}
@@ -184,7 +212,7 @@ if __name__ == '__main__':
         help='Path to image folder. This is where the images from the run will be saved.'
     )
     args = parser.parse_args()
-    
+
     #os.system('rm -rf IMG_stream/*')
     if args.image_folder != '':
         print("Creating image folder at {}".format(args.image_folder))
@@ -196,7 +224,7 @@ if __name__ == '__main__':
         print("Recording this run ...")
     else:
         print("NOT recording this run ...")
-    
+
     # wrap Flask application with socketio's middleware
     app = socketio.Middleware(sio, app)
 
