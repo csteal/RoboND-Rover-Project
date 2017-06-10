@@ -16,15 +16,18 @@ def decision_step(Rover):
         # Check for Rover.mode status
         if Rover.mode == 'forward':
             if len(Rover.rock_angles) >= Rover.rock_detect:
-                if np.min(Rover.rock_dists) < 10:
+                if np.min(Rover.rock_dists) < 7:
                     Rover.throttle = 0
                     Rover.brake = Rover.brake_set
                     Rover.steer = 0
                     Rover.mode == 'stop'
                 else:
-                    if np.min(Rover.rock_dists) < 20:
+                    if np.min(Rover.rock_dists) < 14:
                         Rover.throttle = 0
-                        Rover.brake = 5
+                        if Rover.vel > 1:
+                            Rover.brake = 5
+                        else:
+                            Rover.brake = 0
                     else:
                         Rover.throttle = 0.1
                         Rover.brake = 0

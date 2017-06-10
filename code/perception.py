@@ -121,6 +121,9 @@ def perception_step(Rover):
     Rover.vision_image[obs_thresh.nonzero()[0],obs_thresh.nonzero()[1],0] = 255
     Rover.vision_image[rock_thresh.nonzero()[0],rock_thresh.nonzero()[1],1] = 255
     Rover.vision_image[nav_thresh.nonzero()[0],nav_thresh.nonzero()[1],2] = 255
+    # Rover.vision_image[:,:,0] = obs_thresh * 255
+    # Rover.vision_image[:,:,1] = rock_thresh * 255
+    # Rover.vision_image[:,:,2] = nav_thresh * 255
 
     # 5) Convert map image pixel values to rover-centric coords
     obstacle_x, obstacle_y = rover_coords(obs_thresh)
